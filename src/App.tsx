@@ -4,19 +4,54 @@ import io from "socket.io-client";
 import "./App.css";
 import { time } from "console";
 
+type Function = (...args: any) => any;
+
 const ENDPOINT =
-	process.env.REACT_APP_SERVER_ENDPOINT || process.env.REACT_APP_LOCAL_ENDPOINT;
+	process.env.REACT_APP_SERVER_ENDPOINT ||
+	process.env.REACT_APP_LOCAL_ENDPOINT ||
+	"localhost:2000";
 
 let socket = io(ENDPOINT as string);
+
+const callAndEmit = (
+	{ callback, args }: { callback: (...args: any) => any; args?: any[] },
+	eventName: string
+) => {
+	return () => {
+		if (Array.isArray(args)) {
+			callback(...args);
+		} else {
+			callback();
+		}
+		socket.emit(eventName);
+	};
+};
+
+const stopAndReset = (stop: () => void, reset: () => void) => {
+	return () => {
+		stop();
+		reset();
+	};
+};
 
 type Props = {};
 
 const App: React.FC<Props> = () => {
 	const [timeleft, setTimeleft] = useState(5999);
+	const [eventStart, setEventStart] = useState(false);
+	const [msg, setMsg] = useState("hi");
 
 	useEffect(() => {
-		socket.emit("join", (res: any) => {});
+		socket.emit("join", (res: any) => {
+			setMsg(() => res.msg);
+		});
 	}, []);
+
+	useEffect(() => {
+		socket.on("start", () => {
+			setEventStart(true);
+		});
+	});
 
 	return (
 		<div>
@@ -33,9 +68,24 @@ const App: React.FC<Props> = () => {
 					reset,
 					getTimerState,
 					getTime,
-				}: any) => {
+				}: {
+					start: Function;
+					resume: Function;
+					pause: Function;
+					stop: Function;
+					reset: Function;
+					getTimerState: Function;
+					getTime: Function;
+				}) => {
 					//INITED, STOPPED, PLAYING, PAUSED
 					let timerState = getTimerState();
+
+					if (getTime() <= 0) stopAndReset(stop, reset)();
+
+					if (eventStart) {
+						setEventStart(() => false)
+						start();
+					}
 
 					return (
 						<>
@@ -49,9 +99,12 @@ const App: React.FC<Props> = () => {
 							<div>{getTime()}</div>
 							<br />
 							<div>
-								{timerState === "INITED" && (
-									<button onClick={start}>Start</button>
-								)}
+								{(timerState === "INITED" || timerState === "STOPPED") &&
+									getTime() > 0 && (
+										<button onClick={callAndEmit({ callback: start }, "start")}>
+											Start
+										</button>
+									)}
 								{timerState === "PLAYING" && (
 									<button onClick={pause}>Pause</button>
 								)}
@@ -60,9 +113,10 @@ const App: React.FC<Props> = () => {
 								)}
 								{false && <button onClick={stop}>Stop</button>}
 								{timerState === "PAUSED" && (
-									<button onClick={reset}>Reset</button>
+									<button onClick={stopAndReset(stop, reset)}>Reset</button>
 								)}
 							</div>
+							<div>{msg}</div>
 						</>
 					);
 				}}
