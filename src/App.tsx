@@ -39,6 +39,9 @@ type Props = {};
 const App: React.FC<Props> = () => {
 	const [timeleft, setTimeleft] = useState(5999);
 	const [eventStart, setEventStart] = useState(false);
+	const [eventPause, setEventPause] = useState(false);
+	const [eventResume, setEventResume] = useState(false);
+	const [eventStopAndReset, setEventStopAndReset] = useState(false);
 	const [msg, setMsg] = useState("hi");
 
 	useEffect(() => {
@@ -49,7 +52,19 @@ const App: React.FC<Props> = () => {
 
 	useEffect(() => {
 		socket.on("start", () => {
-			setEventStart(true);
+			setEventStart(() => true);
+		});
+
+		socket.on("pause", () => {
+			setEventPause(() => true);
+		});
+
+		socket.on("resume", () => {
+			setEventResume(() => true);
+		});
+
+		socket.on("stopAndReset", () => {
+			setEventStopAndReset(() => true);
 		});
 	});
 
@@ -83,8 +98,20 @@ const App: React.FC<Props> = () => {
 					if (getTime() <= 0) stopAndReset(stop, reset)();
 
 					if (eventStart) {
-						setEventStart(() => false)
+						setEventStart(() => false);
 						start();
+					}
+					if (eventPause) {
+						setEventPause(() => false);
+						pause();
+					}
+					if (eventResume) {
+						setEventResume(() => false);
+						resume();
+					}
+					if (eventStopAndReset) {
+						setEventStopAndReset(() => false);
+						stopAndReset(stop, reset)();
 					}
 
 					return (
@@ -106,14 +133,25 @@ const App: React.FC<Props> = () => {
 										</button>
 									)}
 								{timerState === "PLAYING" && (
-									<button onClick={pause}>Pause</button>
+									<button onClick={callAndEmit({ callback: pause }, "pause")}>
+										Pause
+									</button>
 								)}
 								{timerState === "PAUSED" && (
-									<button onClick={resume}>Resume</button>
+									<button onClick={callAndEmit({ callback: resume }, "resume")}>
+										Resume
+									</button>
 								)}
 								{false && <button onClick={stop}>Stop</button>}
 								{timerState === "PAUSED" && (
-									<button onClick={stopAndReset(stop, reset)}>Reset</button>
+									<button
+										onClick={callAndEmit(
+											{ callback: stopAndReset, args: [stop, reset] },
+											"stopAndReset"
+										)}
+									>
+										Reset
+									</button>
 								)}
 							</div>
 							<div>{msg}</div>
